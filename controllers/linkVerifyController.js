@@ -1,3 +1,4 @@
+require('dotenv').config();
 const transporter = require('../utils/mailer');
 const { welcomeEmailTemplate } = require('../utils/emailTemplates');
 const UserVerificationLink = require('../models/userLinkverification');
@@ -45,10 +46,11 @@ async function verifyLink(req, res) {
       console.warn('User created, but welcome email failed:', emailErr.message);
     }
     
-    res.status(200).json({
-      message: 'Email verified and user created successfully. Welcome email sent.',
-      userId: newUser._id,
-    });
+    res.redirect(`${process.env.BASE_URL}/login`);
+    // res.status(200).json({
+    //   message: 'Email verified and user created successfully. Welcome email sent.',
+    //   userId: newUser._id,
+    // });
 
   } catch (err) {
     console.error(err);

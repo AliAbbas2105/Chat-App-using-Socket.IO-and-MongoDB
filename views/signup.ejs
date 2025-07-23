@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Login Page</title>
+  <title>Signup Page</title>
 </head>
 <body>
   <h2>Welcome! Please sign in</h2>
 
-  <form action="/signup" method="POST">
+  <form id="signupForm">
     <label for="username">Username:</label><br>
     <input type="text" name="username" required><br><br>
 
@@ -32,5 +32,30 @@
     ">
     Sign in with Google
   </a>
+  
+  <script>
+    const form = document.getElementById('signupForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+
+      const res = await fetch('/signup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        alert(result.message); // Show "Verification link sent!" alert
+        form.reset(); // optional
+      } else {
+        alert(result.error || "Signup failed.");
+      }
+    });
+  </script>
 </body>
 </html>

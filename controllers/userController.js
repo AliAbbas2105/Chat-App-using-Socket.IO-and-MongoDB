@@ -2,9 +2,6 @@ const jwt = require('jsonwebtoken')
 const bcrypt=require('bcrypt')
 require('dotenv').config();
 const User=require('../models/user')
-const Post = require('../models/post')
-const Favorite = require('../models/Favorite');
-const Like = require('../models/Like')
 
 const { v4: uuidv4 } = require('uuid'); //for generating unique token for sending with link in email
 const UserVerificationLink = require('../models/userLinkverification');
@@ -50,7 +47,7 @@ async function Signup(req, res) {
       html: linkEmailTemplate(verificationLink),
     });
 
-    res.status(200).json({ message: 'Verification link sent. Please confirm your email.' });
+    res.status(200).json({ message: 'Verification link sent. Please confirm your email and then login.' });
 
   } catch (err) {
     console.error(err);
@@ -80,8 +77,17 @@ async function Login(req, res) {
       { expiresIn: '1h' }
     );
 
-    res.json({ message: 'Login successful', token });
+    res.cookie('token', token, {
+      httpOnly: true,           // prevents JS access (protects from XSS)
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 3600000
+    });
+
+
+    res.render('homepage'); //for frontend
+    // res.json({ message: 'Login successful', token });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 }
@@ -104,55 +110,8 @@ async function Logout(req, res) {
 
 
 async function ShowAllUsers(req,res) {
-    const users = await User.find().select('-password -__v')
+    const users = await User.find().select('username')
     res.json(users);
-}
-
-async function addPostToFavorites(req, res) {
-  try {
-    const userId = req.user.id;
-    const postId = req.params.postId;
-
-    const post = await Post.findById(postId);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
-
-    const existingFavorite = await Favorite.findOne({ user: userId, post: postId });
-    if (existingFavorite) {
-      return res.status(400).json({ message: 'Post already in favorites' });
-    }
-
-    const newFavorite = new Favorite({ user: userId, post: postId });
-    await newFavorite.save();
-
-    return res.status(200).json({ message: 'Post added to favorites' });
-  } catch (error) {
-    console.error('Add to favorites error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-}
-
-
-async function getFavorites(req, res) {
-  try {
-    const favorites = await Favorite.find({ user: req.user.id })
-      .populate({
-        path: 'post',
-        select: 'content author',
-        populate: { path: 'author', select: 'username' }
-      });
-    
-    const favoritePosts = favorites.map(fav => ({
-      postId: fav.post._id,
-      author: fav.post.author.username,
-      content: fav.post.content,
-      provider:fav.post.author.provider
-    }));
-    
-    res.status(200).json({ message: 'Your favorite posts are:', data: favoritePosts });
-  } catch (err) {
-    console.error('Error fetching favorites:', err);
-    res.status(500).json({ message: 'Failed to get favorite posts' });
-  }
 }
 
 module.exports={
@@ -160,6 +119,4 @@ module.exports={
     Login,
     Logout,
     ShowAllUsers,
-    addPostToFavorites,
-    getFavorites,
 };
