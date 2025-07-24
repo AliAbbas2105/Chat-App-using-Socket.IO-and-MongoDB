@@ -1,7 +1,7 @@
 1- recent(latest) chats to be on top.
 2- last chat-message of each user to be displayed on, with the count of unread messages on right side of that box.
 3- sended message on right, received message on left.
-4- each user chat messages to be saved in mongo db, so to be displayed when that user is opened
+4- each user chat messages to be saved in mongo db, so to be displayed when that user chat is opened
 5- similar to whatsapp, first signup/login is required, jwt authentication, so user model would have username, email, password,
 *- When a user sends messages, it's checked if the recipient is online or not. If yes, message is sent to him. If not, nothing happens. In both the cases, message is stored in database for later access
 *- The chat between two people will not be broadcasted to other users online

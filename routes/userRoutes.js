@@ -11,8 +11,13 @@ router.post('/login', controller.Login);
 router.get('/login', (req, res) => {
   res.render('login');
 })
-//router.use(authenticateToken);
+router.get('/homepage', authenticateToken, (req, res) => {
+  res.render('homepage', {username: req.user.username});
+})
+
 router.post('/logout',authenticateToken, controller.Logout);
 router.get('/showAllUsers',authenticateToken,controller.ShowAllUsers);
-
+router.get('/users/search', authenticateToken, controller.searchUsers);
+router.get('/users/chatted', authenticateToken, controller.getChattedUsers);
+router.get('/messages/history/:userId', authenticateToken, controller.getChatHistory);
 module.exports = router;
