@@ -105,10 +105,18 @@ async function Logout(req, res) {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    // Invalidate token
     user.tokenVersion += 1;
     await user.save();
 
-    res.status(200).json({ message: 'Logged out successfully, token invalidated' });
+    // Clear the cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax'
+    });
+
+    res.status(200).json({ message: 'Logged out successfully' });
   } catch (err) {
     console.error('Logout error:', err);
     res.status(500).json({ message: 'Logout failed' });

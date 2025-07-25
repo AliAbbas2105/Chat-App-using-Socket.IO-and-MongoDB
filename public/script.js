@@ -12,12 +12,11 @@ let users = [];
 let unreadCounts = {};
 let chatHistory = {};
 
-// Fetch unread counts from server
 async function fetchUnreadCounts() {
   try {
     const res = await fetch('/users/unread-counts');
     unreadCounts = await res.json();
-    renderUserList(users); // Update display with new counts
+    renderUserList(users); // Updates display with new counts
   } catch (err) {
     console.error('Failed to fetch unread counts:', err);
   }
@@ -31,7 +30,7 @@ async function fetchChattedUsers() {
   renderUserList(users);
 }
 
-      // Fetch chat history with a user
+// Fetch chat history with a user
 async function fetchChatHistory(userId) {
   const res = await fetch(`/messages/history/${userId}`);
   const history = await res.json();
@@ -117,7 +116,7 @@ function scrollToBottom() {
   messages.scrollTop = messages.scrollHeight;
 }
 
-// Select a user to chat with
+// Select a user to chat with and set unread count to 0
 function selectUser(user) {
   selectedUser = user;
   renderUserList(users);
@@ -163,8 +162,30 @@ searchInput.addEventListener('input', (e) => {
 // Initial load
 fetchChattedUsers();
 
+// Handle logout
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try {
+    const response = await fetch('/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+
+    if (response.ok) {
+      // Disconnect socket
+      socket.disconnect();
+      // Redirect to login page
+      window.location.href = '/login';
+    } else {
+      alert('Logout failed. Please try again.');
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    alert('Logout failed. Please try again.');
+  }
+});
+
 socket.on('tokenExpired', () => {
-        alert('Session expired or not logged in. Please log in again.');
-        window.location.href = '/login';
+  alert('Session expired or not logged in. Please log in again.');
+  window.location.href = '/login';
 });
     

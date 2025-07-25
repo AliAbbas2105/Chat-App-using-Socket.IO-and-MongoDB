@@ -17,11 +17,7 @@ const GoogleRoutes = require('./routes/googleRouter');
 const User = require('./models/user');
 require('./controllers/auth-google');
 
-
-const MONGODBLINK=process.env.MONGODBLINK
-const secretKey = process.env.ACCESS_TOKEN_SECRET;
-
-mongoose.connect(MONGODBLINK)
+mongoose.connect(process.env.MONGODBLINK)
         .then(()=>{
             console.log('Connected to MongoDB');
         })
@@ -107,7 +103,7 @@ io.on('connection', async (socket) => {
   // Handle private messages
   socket.on('private message', async ({ toUserId, text }) => {
     if (!toUserId || !text) return;
-    // Save message to DB
+    // Save message to DB, unread by default
     const message = new Message({
       sender: userId,
       recipient: toUserId,
