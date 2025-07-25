@@ -100,7 +100,6 @@ async function Login(req, res) {
   }
 }
 
-// POST /logout
 async function Logout(req, res) {
   try {
     const user = await User.findById(req.user.id);
@@ -115,12 +114,6 @@ async function Logout(req, res) {
     res.status(500).json({ message: 'Logout failed' });
   }
 };
-
-
-async function ShowAllUsers(req,res) {
-    const users = await User.find().select('username')
-    res.json(users);
-}
 
 // Search users by username (case-insensitive, partial match)
 async function searchUsers(req, res) {
@@ -265,7 +258,6 @@ module.exports={
     Signup,
     Login,
     Logout,
-    ShowAllUsers,
     searchUsers,
     getChattedUsers,
     getChatHistory,

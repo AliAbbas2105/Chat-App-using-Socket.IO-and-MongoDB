@@ -16,7 +16,6 @@ router.get('/homepage', authenticateToken, (req, res) => {
 })
 
 router.post('/logout',authenticateToken, controller.Logout);
-router.get('/showAllUsers',authenticateToken,controller.ShowAllUsers);
 router.get('/users/search', authenticateToken, controller.searchUsers);
 router.get('/users/chatted', authenticateToken, controller.getChattedUsers);
 router.get('/messages/history/:userId', authenticateToken, controller.getChatHistory);
