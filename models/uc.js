@@ -139,6 +139,7 @@ async function searchUsers(req, res) {
   }
 }
 
+// Get users the current user has chatted with (either as sender or recipient)
 const Message = require('../models/message');
 async function getChattedUsers(req, res) {
   try {
@@ -199,28 +200,32 @@ async function getChattedUsers(req, res) {
   }
 }
 
+// Get unread message counts for all users
 async function getUnreadCounts(req, res) {
   try {
     const userId = req.user._id;
-
+    
+    // Find all unread messages for the current user
     const unreadMessages = await Message.find({
       recipient: userId,
       isRead: false
     }).select('sender');
 
-    const unreadCountsForSender = {};
+    // Count messages by sender
+    const countsObject = {};
     unreadMessages.forEach(msg => {
       const senderId = msg.sender.toString();
-      unreadCountsForSender[senderId] = (unreadCountsForSender[senderId] || 0) + 1;
+      countsObject[senderId] = (countsObject[senderId] || 0) + 1;
     });
 
-    res.json(unreadCountsForSender);
+    res.json(countsObject);
   } catch (err) {
     console.error('Get unread counts error:', err);
     res.status(500).json({ error: 'Failed to get unread counts' });
   }
 }
 
+// Get chat history between current user and another user
 async function getChatHistory(req, res) {
   try {
     const userId = req.user._id;

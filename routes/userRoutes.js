@@ -20,4 +20,5 @@ router.get('/showAllUsers',authenticateToken,controller.ShowAllUsers);
 router.get('/users/search', authenticateToken, controller.searchUsers);
 router.get('/users/chatted', authenticateToken, controller.getChattedUsers);
 router.get('/messages/history/:userId', authenticateToken, controller.getChatHistory);
+router.get('/users/unread-counts', authenticateToken, controller.getUnreadCounts);
 module.exports = router;
