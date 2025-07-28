@@ -1,12 +1,8 @@
 const jwt = require('jsonwebtoken')
 const bcrypt=require('bcrypt')
 require('dotenv').config();
-const User=require('../models/user')
-
-// const { v4: uuidv4 } = require('uuid'); //for generating unique token for sending with link in email
-// const UserVerificationLink = require('../models/userLinkverification');
-// const { linkEmailTemplate } = require('../utils/emailTemplates');
-// const transporter = require('../utils/mailer');
+const User = require('../models/user');
+const Notification = require('../models/notification');
 
 async function Signup(req, res) {
   try {
@@ -262,7 +258,51 @@ async function getChatHistory(req, res) {
   }
 }
 
-module.exports={
+async function getNotifications(req, res) {
+  try {
+    const notifications = await Notification.find({ 
+      userId: req.user._id,
+      read: false // Only get unread notifications
+    })
+    .sort({ createdAt: -1 })
+    .populate('fromUserId', 'username')
+    .limit(50);
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+}
+
+async function deleteNotifications(req, res) {
+  try {
+    const { notificationIds } = req.body;
+    await Notification.deleteMany({
+      _id: { $in: notificationIds },
+      userId: req.user._id // Security check
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete notifications' });
+  }
+}
+
+async function markNotificationsRead(req, res) {
+  try {
+    const { notificationIds } = req.body;
+    await Notification.updateMany(
+      {
+        _id: { $in: notificationIds },
+        userId: req.user._id
+      },
+      { $set: { read: true } }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark notifications as read' });
+  }
+}
+
+module.exports = {
     Signup,
     Login,
     Logout,
@@ -270,4 +310,6 @@ module.exports={
     getChattedUsers,
     getChatHistory,
     getUnreadCounts,
+    getNotifications,
+    deleteNotifications
 };

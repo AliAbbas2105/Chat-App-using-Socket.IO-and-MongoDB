@@ -15,6 +15,7 @@ const jwt = require('jsonwebtoken');
 const userRoutes=require('./routes/userRoutes')
 const GoogleRoutes = require('./routes/googleRouter');
 const User = require('./models/user');
+const Notification = require('./models/notification');
 require('./controllers/auth-google');
 
 mongoose.connect(process.env.MONGODBLINK)
@@ -103,6 +104,9 @@ io.on('connection', async (socket) => {
   // Handle private messages
   socket.on('private message', async ({ toUserId, text }) => {
     if (!toUserId || !text) return;
+    
+    const sender = await User.findById(userId);
+    
     // Save message to DB, unread by default
     const message = new Message({
       sender: userId,
@@ -112,11 +116,23 @@ io.on('connection', async (socket) => {
     });
     await message.save();
 
+    // Create notification for recipient (but not for sender)
+    const notification = new Notification({
+      userId: toUserId,
+      fromUserId: userId,
+      message: `New message from ${sender.username}: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`,
+      read: false
+    });
+    await notification.save();
+
     // Send to recipient if online
     const recipientSocketId = onlineUsers[toUserId];
     if (recipientSocketId) {
       io.to(recipientSocketId).emit('private message', {
-        sender: userId,
+        fromUserId: userId,
+        senderName: sender.username,
+        text,
+        messageId: message._id,
         senderName: username,
         text,
         _id: message._id,
