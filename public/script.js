@@ -12,6 +12,7 @@ let users = [];
 let unreadCounts = {};
 let chatHistory = {};
 let notifications = [];
+let onlineUsers = new Set();
 
 async function fetchUnreadCounts() {
   try {
@@ -151,6 +152,14 @@ async function fetchChattedUsers() {
 async function fetchChatHistory(userId) {
   const res = await fetch(`/messages/history/${userId}`);
   const history = await res.json();
+  
+  // Make sure each message has isRead property set
+  history.forEach(msg => {
+    if (msg.sender === CURRENT_USER) {
+      msg.isRead = !!msg.isRead; // Convert to boolean
+    }
+  });
+  
   chatHistory[userId] = history;
   renderMessages(history);
   scrollToBottom();
@@ -173,15 +182,34 @@ function renderUserList(users) {
   users.forEach(user => {
     const li = document.createElement('li');
     
+    // Create avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    // Using UI Avatars API - generates consistent avatars based on username
+    avatar.innerHTML = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random&color=fff" alt="${user.username}">`;
+    li.appendChild(avatar);
+    
     // Create user info container
     const userInfo = document.createElement('div');
     userInfo.className = 'user-info';
     
-    // Add username
+    // Create header with username and date
+    const header = document.createElement('div');
+    header.className = 'chat-header';
+    
     const username = document.createElement('div');
     username.className = 'username';
     username.textContent = user.username;
-    userInfo.appendChild(username);
+    header.appendChild(username);
+    
+    if (user.lastMessageDate) {
+      const date = document.createElement('div');
+      date.className = 'chat-date';
+      date.textContent = formatDate(user.lastMessageDate);
+      header.appendChild(date);
+    }
+    
+    userInfo.appendChild(header);
     
     // Add last message preview
     if (user.lastMessage) {
@@ -212,15 +240,33 @@ function renderUserList(users) {
   });
 }
 
-// Render messages
+function getMessageStatusHTML(isRead) {
+  return `<span style="font-size: 0.75em; color: #8696A0; white-space: nowrap">${isRead ? 'Seen' : 'Delivered'}</span>`;
+}
+
 function renderMessages(msgs) {
   messages.innerHTML = '';
   msgs.forEach(msg => {
     const item = document.createElement('li');
-    item.innerHTML = `<strong>${msg.senderName || msg.sender}:</strong> ${msg.content || msg.text}`;
-    if ((msg.senderName && msg.senderName === CURRENT_USER) || (msg.sender === CURRENT_USER)) {
+    const messageDate = msg.createdAt instanceof Date ? msg.createdAt : new Date(msg.createdAt);
+    const isSentByMe = (msg.senderName && msg.senderName === CURRENT_USER) || (msg.sender === CURRENT_USER);
+    
+    if (isSentByMe) {
+      const statusHTML = getMessageStatusHTML(msg.isRead);
+      item.setAttribute('data-message-id', msg._id);
+      item.innerHTML = `
+        <div class="message-content">${msg.content || msg.text}</div>
+        <div class="message-info" style="display: flex; align-items: center; gap: 8px; margin-top: 4px">
+          <span class="message-date" style="margin-right: 4px">${formatDate(messageDate)}</span>
+          <span class="message-status">${statusHTML}</span>
+        </div>`;
       item.className = 'sent';
     } else {
+      item.innerHTML = `
+        <div class="message-content">${msg.content || msg.text}</div>
+        <div class="message-info">
+          <span class="message-date">${formatDate(messageDate)}</span>
+        </div>`;
       item.className = 'received';
     }
     messages.appendChild(item);
@@ -234,10 +280,12 @@ function scrollToBottom() {
 }
 
 // Select a user to chat with and set unread count to 0
-function selectUser(user) {
+async function selectUser(user) {
   selectedUser = user;
   
-  // Mark messages as read first
+  await fetchChatHistory(user._id);
+  
+  // Mark messages as read
   socket.emit('mark as read', { withUserId: user._id });
   
   // Reset unread count for this user
@@ -245,7 +293,6 @@ function selectUser(user) {
   
   // Update UI
   renderUserList(users);
-  fetchChatHistory(user._id);
   
   // Delete all notifications from this user
   const notificationsToDelete = notifications
@@ -279,8 +326,10 @@ form.addEventListener('submit', (e) => {
       sender: CURRENT_USER,
       senderName: CURRENT_USER,
       text: messageText,
-      _id: Date.now() // Temporary ID until server confirms
-    };
+      _id: Date.now(),
+      createdAt: new Date(), // Add current date/time for the message
+      status: 'sent' // Initial status
+     } 
     chatHistory[selectedUser._id].push(newMessage);
     renderMessages(chatHistory[selectedUser._id]);
     scrollToBottom();
@@ -292,8 +341,6 @@ form.addEventListener('submit', (e) => {
     fetchChattedUsers();
   }
 });
-
-// Handle receiving a private message
 
 
 // Search bar event
@@ -308,7 +355,6 @@ async function initialLoad() {
 }
 initialLoad();
 
-// Handle logout
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   try {
     const response = await fetch('/logout', {
@@ -317,9 +363,7 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
     });
 
     if (response.ok) {
-      // Disconnect socket
       socket.disconnect();
-      // Redirect to login page
       window.location.href = '/login';
     } else {
       alert('Logout failed. Please try again.');
@@ -330,13 +374,23 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   }
 });
 
+socket.on('tokenExpired', () => {
+  alert('Session expired or not logged in. Please log in again.');
+  window.location.href = '/login';
+});
+
 // Handle incoming messages and notifications
-socket.on('private message', async ({ fromUserId, senderName, text, messageId }) => {
-  // First handle message display
+socket.on('private message', async ({ fromUserId, senderName, text, _id, createdAt, isRead }) => {
   if (selectedUser && fromUserId === selectedUser._id) {
     // If chat is open with this user, add message and mark as read
     if (!chatHistory[fromUserId]) chatHistory[fromUserId] = [];
-    chatHistory[fromUserId].push({ sender: senderName, text, _id: messageId });
+    chatHistory[fromUserId].push({ 
+      sender: senderName, 
+      text, 
+      _id: _id || Date.now(),
+      createdAt: createdAt || new Date(),
+      isRead: !!isRead
+    });
     renderMessages(chatHistory[fromUserId]);
     // Immediately mark as read on server
     socket.emit('mark as read', { withUserId: fromUserId });
@@ -361,8 +415,27 @@ socket.on('private message', async ({ fromUserId, senderName, text, messageId })
   }
 });
 
-socket.on('tokenExpired', () => {
-  alert('Session expired or not logged in. Please log in again.');
-  window.location.href = '/login';
+// Handle message status updates
+socket.on('message-status', ({ messageId, isRead }) => {
+  console.log('Status update received:', messageId, isRead);
+  // First try to update the specific status element without re-rendering
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (messageElement) {
+    const statusSpan = messageElement.querySelector('.message-status');
+    if (statusSpan) {
+      statusSpan.innerHTML = getMessageStatusHTML(isRead);
+      console.log('Updated status display for message:', messageId);
+    }
+  }
+  
+  // Also update in chat history
+  for (let userId in chatHistory) {
+    const messages = chatHistory[userId];
+    const message = messages.find(msg => msg._id.toString() === messageId.toString());
+    if (message) {
+      message.isRead = isRead;
+      break;
+    }
+  }
 });
     

@@ -165,7 +165,8 @@ async function getChattedUsers(req, res) {
         userMap.set(otherId, {
           lastMessageAt: msg.createdAt,
           lastMessage: msg.content,
-          isLastMessageMine: msg.sender.toString() === userId.toString()
+          isLastMessageMine: msg.sender.toString() === userId.toString(),
+          lastMessageDate: msg.createdAt
         });
       }
     });
@@ -184,7 +185,8 @@ async function getChattedUsers(req, res) {
         ...user,
         lastMessageAt: messageInfo.lastMessageAt,
         lastMessage: messageInfo.lastMessage,
-        isLastMessageMine: messageInfo.isLastMessageMine
+        isLastMessageMine: messageInfo.isLastMessageMine,
+        lastMessageDate: messageInfo.lastMessageDate // Add the date for frontend display
       };
     })
     .sort((a, b) => b.lastMessageAt - a.lastMessageAt);
@@ -283,22 +285,6 @@ async function deleteNotifications(req, res) {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete notifications' });
-  }
-}
-
-async function markNotificationsRead(req, res) {
-  try {
-    const { notificationIds } = req.body;
-    await Notification.updateMany(
-      {
-        _id: { $in: notificationIds },
-        userId: req.user._id
-      },
-      { $set: { read: true } }
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to mark notifications as read' });
   }
 }
 

@@ -84,7 +84,6 @@ io.on('connection', async (socket) => {
         socket.userId = userId;
         socket.username = username;
         onlineUsers[userId] = socket.id;
-        
       } else {
         socket.emit('tokenExpired');
         socket.disconnect();
@@ -112,7 +111,8 @@ io.on('connection', async (socket) => {
       sender: userId,
       recipient: toUserId,
       content: text,
-      isRead: false
+      isRead: false,
+      createdAt: new Date()
     });
     await message.save();
 
@@ -127,38 +127,68 @@ io.on('connection', async (socket) => {
 
     // Send to recipient if online
     const recipientSocketId = onlineUsers[toUserId];
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('private message', {
-        fromUserId: userId,
-        senderName: sender.username,
-        text,
-        messageId: message._id,
-        senderName: username,
-        text,
-        _id: message._id,
-        createdAt: message.createdAt
-      });
-    }
-    // Also emit to sender for instant UI update
+    
+    // First emit to sender for instant UI update
     socket.emit('private message', {
       sender: userId,
       senderName: username,
       text,
       _id: message._id,
-      createdAt: message.createdAt
+      createdAt: message.createdAt,
+      isRead: false
     });
+
+    if (recipientSocketId) {
+      // Send to recipient
+      io.to(recipientSocketId).emit('private message', {
+        fromUserId: userId,
+        senderName: sender.username,
+        text,
+        _id: message._id,
+        createdAt: message.createdAt
+      });
+    }
   });
 
   // Mark messages as read when user opens a chat
   socket.on('mark as read', async ({ withUserId }) => {
     if (!withUserId) return;
-    await Message.updateMany({ sender: withUserId, recipient: userId, isRead: false }, { isRead: true });
+    
+    try {
+      // Get unread messages first
+      const unreadMessages = await Message.find({
+        sender: withUserId,
+        recipient: userId,
+        isRead: false
+      });
+
+      // Mark messages as read in database
+      await Message.updateMany(
+        { sender: withUserId, recipient: userId, isRead: false },
+        { isRead: true }
+      );
+      
+      // Notify sender immediately about the messages that were just marked as read
+      const senderSocketId = onlineUsers[withUserId];
+      if (senderSocketId && unreadMessages.length > 0) {
+        console.log('Sending read status for messages:', unreadMessages.map(m => m._id));
+        unreadMessages.forEach(message => {
+          io.to(senderSocketId).emit('message-status', {
+            messageId: message._id,
+            isRead: true
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
   });
 
   // On disconnect, remove from online users
   socket.on('disconnect', () => {
-    console.log(`${socket.username} disconnected`)
+    console.log(`${socket.username} disconnected`);
     delete onlineUsers[userId];
+    
   });
 });
 
