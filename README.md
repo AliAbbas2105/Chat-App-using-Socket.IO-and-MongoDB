@@ -8,6 +8,7 @@ A real-time chat application built using **Express.js**, **Socket.IO**, and **Mo
 - 💬 **Real-Time Messaging** – Messages are delivered instantly using Socket.IO.
 - 📥 **Persistent Message Storage** – Messages are saved in the database even if the receiver is offline or chatting with someone else.
 - 📊 **Unread Count** – Messages are marked as unread and updated to read when the user views the chat.
+- 🔔 **Notifications** - Notification received on each message is shown, gets deleted when marked as read.
 - 👤 **Chat History Sidebar** – Sidebar shows users you've chatted with, ordered by latest message.
 - 🔍 **User Search** – Search users and start a new conversation.
 - ⚡ **Message Sync** – Ensures seamless message synchronization across online/offline states.
