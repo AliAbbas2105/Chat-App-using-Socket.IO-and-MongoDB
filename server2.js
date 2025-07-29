@@ -12,8 +12,9 @@ const { Server } = require('socket.io');
 const cookie = require('cookie');
 const jwt = require('jsonwebtoken');
 
-const userRoutes=require('./routes/userRoutes')
+const userRoutes = require('./routes/userRoutes');
 const GoogleRoutes = require('./routes/googleRouter');
+const roomRoutes = require('./routes/roomRoutes');
 const User = require('./models/user');
 const Notification = require('./models/notification');
 require('./controllers/auth-google');
@@ -58,7 +59,8 @@ app.get('/', (req, res) => {
 });
 
 app.use('/auth', GoogleRoutes);
-app.use('/',userRoutes)
+app.use('/', userRoutes);
+app.use('/rooms', roomRoutes);
 
 const server = createServer(app);
 const io = new Server(server);
