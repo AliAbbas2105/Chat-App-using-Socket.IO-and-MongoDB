@@ -4,6 +4,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>Socket.IO chat</title>
     <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   </head>
   <body>
     <div class="header">
@@ -13,8 +14,8 @@
         <span id="notification-badge" class="notification-badge hidden">0</span>
       </div>
     </div>
-    <!-- Add Font Awesome for the bell icon -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    
     <div class="container">
       <div class="sidebar">
         <div class="sidebar-content">
@@ -29,6 +30,9 @@
         </div>
       </div>
       <div class="chat-area">
+        <div class="chat-header">
+          <div id="selectedUserName" class="selectedUserName"></div>
+        </div>
         <ul id="messages"></ul>
       </div>
     </div>

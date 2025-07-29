@@ -182,12 +182,8 @@ function renderUserList(users) {
   users.forEach(user => {
     const li = document.createElement('li');
     
-    // Create avatar
-    const avatar = document.createElement('div');
-    avatar.className = 'user-avatar';
-    // Using UI Avatars API - generates consistent avatars based on username
-    avatar.innerHTML = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=random&color=fff" alt="${user.username}">`;
-    li.appendChild(avatar);
+        // Add avatar
+    li.appendChild(createUserAvatar(user.username));
     
     // Create user info container
     const userInfo = document.createElement('div');
@@ -280,8 +276,33 @@ function scrollToBottom() {
 }
 
 // Select a user to chat with and set unread count to 0
+// Create user avatar element
+function createUserAvatar(username) {
+  const avatar = document.createElement('div');
+  avatar.className = 'user-avatar';
+  avatar.innerHTML = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random&color=fff" alt="${username}">`;
+  return avatar;
+}
+
 async function selectUser(user) {
   selectedUser = user;
+  
+  // Update the chat header with selected username and avatar
+  const headerDiv = document.getElementById('selectedUserName');
+  headerDiv.innerHTML = ''; // Clear existing content
+  headerDiv.appendChild(createUserAvatar(user.username));
+  
+  // Add user info container
+  const userInfo = document.createElement('div');
+  userInfo.className = 'user-info';
+  
+  // Add username
+  const username = document.createElement('div');
+  username.className = 'username';
+  username.textContent = user.username;
+  userInfo.appendChild(username);
+  
+  headerDiv.appendChild(userInfo);
   
   await fetchChatHistory(user._id);
   

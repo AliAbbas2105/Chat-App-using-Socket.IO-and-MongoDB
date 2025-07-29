@@ -13,7 +13,6 @@
         justify-content: center;
       }
 
-      /* User list styles */
       #userList li {
         display: flex;
         align-items: center;
@@ -48,7 +47,9 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 4px;
+        padding-left: 0px;
       }
+
 
       .chat-date {
         font-size: 0.8rem;
@@ -56,11 +57,7 @@
         white-space: nowrap;
       }
 
-      .username {
-        font-weight: 600;
-        color: #333;
-        margin-right: 8px;
-      }
+      
 
       .last-message {
         color: #666;
@@ -301,7 +298,32 @@
         cursor: pointer;
         margin-right: 5px;
       }
-        
+      .logout-btn:hover {
+        background-color: #c82333;
+      }
+      
+
+.selectedUserName {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.selectedUserName .user-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.selectedUserName .username {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111b21;
+  margin-bottom: 2px;
+}
+
+
       .chat-area {
         flex: 1;
         display: flex;
@@ -345,7 +367,7 @@
         left: 300px;
         right: 0;
         display: flex;
-        height: 3.5rem;
+        height: 3.0rem;
         box-sizing: border-box;
         border-top: 1px solid #ddd;
         z-index: 10;
@@ -357,6 +379,7 @@
         border-radius: 2rem;
         margin: 0.25rem;
         font-size: 1rem;
+        height: 1.5rem;
       }
       #input:focus { outline: none; border-color: #888; }
       #form > button {
