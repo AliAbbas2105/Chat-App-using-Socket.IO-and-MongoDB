@@ -10,8 +10,104 @@
         z-index: 100;
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        padding: 0 15px;
+}
+.room-header-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0px;
+  background-color: #f5f8fa;
+}
+
+.room-info {
+  flex-grow: 1;
+  margin-left: 10px;
+}
+
+.room-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #000000;
+}
+
+
+
+
+.create-room-button {
+    background: #f0f2f5;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.create-room-button:hover {
+    background: #e4e6e8;
+}
+
+.room-actions {
+    margin-left: auto;
+    margin-right: 0;
+    margin-top: 4px;
+    display: flex;
+    gap: 10px;
+}
+
+.room-action-btn {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items:end;
+    gap: 5px;
+    font-size: 0.9em;
+    background: #e4e6e8;
+    color: #333;
+}
+
+.room-action-btn:hover {
+    background: #d4d6d8;
+}
+
+.room-action-btn.delete {
+    background: #ffebee;
+    color: #d32f2f;
+}
+
+.room-action-btn.delete:hover {
+    background: #ffcdd2;
+        display: flex;
+        align-items: center;
         justify-content: center;
-      }
+}
+.join-room-btn {
+  background: #25D366;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.join-room-btn:hover {
+  background: #1da851;
+}
+
+.room-member-count {
+  font-size: 0.8em;
+  color: #8696A0;
+  margin-top: 2px;
+}
+
+.username i {
+  margin-left: 5px;
+  font-size: 0.8em;
+  color: #8696A0;
+}
 
       #userList li {
         display: flex;
@@ -195,6 +291,13 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .sender-name {
+        font-weight: bold;
+        font-size: 0.9em;
+        color: #555;
+        margin-bottom: 0px;
       }
 
       .message-status {

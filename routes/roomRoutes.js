@@ -1,15 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const roomController = require('../controllers/roomController');
-const authMiddleware = require('../middlewares/authMiddleware');
+const authenticateToken  = require('../middlewares/authMiddleware'); // Adjust path as needed
+const {
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    deleteRoom,
+    getUserRooms,
+    getRoomDetails,
+    getRoomUnreadCounts,
+    getRoomMessages
+} = require('../controllers/roomController');
 
-router.use(authMiddleware);
-
-router.post('/create', roomController.createRoom);
-router.post('/join/:roomId', roomController.joinRoom);
-router.post('/leave/:roomId', roomController.leaveRoom);
-router.delete('/delete/:roomId', roomController.deleteRoom);
-router.get('/my-rooms', roomController.getUserRooms);
-router.get('/:roomId', roomController.getRoomDetails);
+router.post('/create', authenticateToken, createRoom);
+router.get('/unread-counts', authenticateToken, getRoomUnreadCounts);
+router.get('/user-rooms', authenticateToken, getUserRooms);
+router.post('/:roomId/join', authenticateToken, joinRoom);
+router.post('/:roomId/leave', authenticateToken, leaveRoom);
+router.get('/:roomId/messages', authenticateToken, getRoomMessages);
+router.delete('/:roomId', authenticateToken, deleteRoom);
+router.get('/:roomId', authenticateToken, getRoomDetails);
 
 module.exports = router;

@@ -3,6 +3,9 @@ const bcrypt=require('bcrypt')
 require('dotenv').config();
 const User = require('../models/user');
 const Notification = require('../models/notification');
+const Message = require('../models/message');
+const RoomMember = require('../models/roomMember');
+const ChatRoom = require('../models/chatRoom');
 
 async function Signup(req, res) {
   try {
@@ -56,7 +59,6 @@ async function Signup(req, res) {
     res.status(500).json({ error: 'Signup failed' });
   }
 }
-
 
 async function Login(req, res) {
   try {
@@ -119,30 +121,79 @@ async function Logout(req, res) {
   }
 };
 
-// Search users by username (case-insensitive, partial match)
+// // Search users by username (case-insensitive, partial match)
+// async function searchUsers(req, res) {
+//   try {
+//     const { q } = req.query;
+//     if (!q) return res.status(400).json({ error: 'Query required' });
+//     // Exclude self from search results
+//     const users = await User.find({
+//       username: { $regex: q, $options: 'i' },
+//       _id: { $ne: req.user._id }
+//     }).select('username email');
+//     res.json(users);
+//   } catch (err) {
+//     console.error('Search users error:', err);
+//     res.status(500).json({ error: 'Failed to search users' });
+//   }
+// }
+// UPDATED Search function - searches both users and rooms
 async function searchUsers(req, res) {
   try {
     const { q } = req.query;
     if (!q) return res.status(400).json({ error: 'Query required' });
-    // Exclude self from search results
+    
+    const userId = req.user._id;
+    
+    // Search for users (exclude self)
     const users = await User.find({
       username: { $regex: q, $options: 'i' },
-      _id: { $ne: req.user._id }
+      _id: { $ne: userId }
     }).select('username email');
-    res.json(users);
+    
+    // Search for chat rooms
+    const rooms = await ChatRoom.find({
+      roomName: { $regex: q, $options: 'i' }
+    }).select('roomName createdBy createdAt').populate('createdBy', 'username');
+    
+    // Check which rooms the user is already a member of
+    const userRoomMemberships = await RoomMember.find({ userId }).select('roomId');
+    const userRoomIds = userRoomMemberships.map(m => m.roomId.toString());
+    
+    // Format rooms with membership status
+    const formattedRooms = rooms.map(room => ({
+      _id: room._id,
+      name: room.roomName,
+      roomName: room.roomName, // Keep both for compatibility
+      type: 'room',
+      createdBy: room.createdBy._id,
+      createdAt: room.createdAt,
+      isMember: userRoomIds.includes(room._id.toString()),
+      isCreator: room.createdBy._id.toString() === userId.toString()
+    }));
+    
+    // Format users
+    const formattedUsers = users.map(user => ({
+      ...user.toObject(),
+      type: 'private'
+    }));
+    
+    // Combine results
+    const results = [...formattedUsers, ...formattedRooms];
+    
+    res.json(results);
   } catch (err) {
     console.error('Search users error:', err);
-    res.status(500).json({ error: 'Failed to search users' });
+    res.status(500).json({ error: 'Failed to search users and rooms' });
   }
 }
-
-const Message = require('../models/message');
 async function getChattedUsers(req, res) {
   try {
     const userId = req.user._id;
     
-    // Get all messages involving current user, sorted by newest first
-    const messages = await Message.find({
+    // Get all private messages involving current user by their last message time
+    const privateMessages = await Message.find({
+      type: 'private',
       $or: [
         { sender: userId },
         { recipient: userId }
@@ -151,18 +202,27 @@ async function getChattedUsers(req, res) {
     .sort({ createdAt: -1 })
     .lean();
 
-    // Get unique users and their last message details
-    const userMap = new Map(); // Store user's latest message info
+    // Get all room messages for rooms user is member of
+    const userRooms = await RoomMember.find({ userId }).select('roomId');
+    const roomIds = userRooms.map(room => room.roomId);
     
-    messages.forEach(msg => {
-      // Determine which user ID is the other person (not current user)
+    const roomMessages = await Message.find({
+      type: 'room',
+      roomId: { $in: roomIds }
+    })
+    .sort({ createdAt: -1 })
+    .lean();
+
+    // Process private chats
+    const userMap = new Map();
+    privateMessages.forEach(msg => {
       const otherId = msg.sender.toString() === userId.toString() ? 
                      msg.recipient.toString() : 
                      msg.sender.toString();
       
-      // Only store the first (most recent) message for each user
       if (!userMap.has(otherId)) {
         userMap.set(otherId, {
+          type: 'private',
           lastMessageAt: msg.createdAt,
           lastMessage: msg.content,
           isLastMessageMine: msg.sender.toString() === userId.toString(),
@@ -171,27 +231,66 @@ async function getChattedUsers(req, res) {
       }
     });
 
-    // Get user details for all users we found
+    // Process room chats
+    const roomMap = new Map();
+    for (const room of userRooms) {
+      const lastMessage = roomMessages.find(msg => msg.roomId.toString() === room.roomId.toString());
+      if (lastMessage) {
+        roomMap.set(room.roomId.toString(), {
+          type: 'room',
+          lastMessageAt: lastMessage.createdAt,
+          lastMessage: lastMessage.content,
+          isLastMessageMine: lastMessage.sender.toString() === userId.toString(),
+          lastMessageDate: lastMessage.createdAt
+        });
+      }
+    }
+
+    // Get user details for private chats
     const users = await User.find({
       _id: { $in: Array.from(userMap.keys()) }
     })
     .select('username email')
     .lean();
 
-    // Add the last message details to each user and sort
-    const usersWithMessages = users.map(user => {
+    // Get room details
+    const rooms = await ChatRoom.find({
+      _id: { $in: roomIds }
+    })
+    .select('roomName createdBy')
+    .lean();
+
+    // Combine private chats and rooms
+    const privateChats = users.map(user => {
       const messageInfo = userMap.get(user._id.toString());
       return {
         ...user,
+        type: 'private',
         lastMessageAt: messageInfo.lastMessageAt,
         lastMessage: messageInfo.lastMessage,
         isLastMessageMine: messageInfo.isLastMessageMine,
-        lastMessageDate: messageInfo.lastMessageDate // Add the date for frontend display
+        lastMessageDate: messageInfo.lastMessageDate
       };
-    })
-    .sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    });
 
-    res.json(usersWithMessages);
+    const roomChats = rooms.map(room => {
+      const messageInfo = roomMap.get(room._id.toString());
+      return messageInfo ? {
+        ...room,
+        name: room.roomName,
+        type: 'room',
+        lastMessageAt: messageInfo.lastMessageAt,
+        lastMessage: messageInfo.lastMessage,
+        isLastMessageMine: messageInfo.isLastMessageMine,
+        lastMessageDate: messageInfo.lastMessageDate
+      } : null;
+    }).filter(Boolean);
+
+    // Combine and sort all chats by last message time
+    const allChats = [...privateChats, ...roomChats]
+      .sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+
+    res.json(allChats);
   } catch (err) {
     console.error('Get chatted users error:', err);
     res.status(500).json({ error: 'Failed to get chatted users' });

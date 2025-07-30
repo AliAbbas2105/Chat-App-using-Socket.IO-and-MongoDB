@@ -12,7 +12,7 @@ router.get('/login', (req, res) => {
   res.render('login');
 })
 router.get('/homepage', authenticateToken, (req, res) => {
-  res.render('homepage', {username: req.user.username});
+  res.render('homepage', {username: req.user.username, userId: req.user._id.toString()});
 })
 
 router.post('/logout',authenticateToken, controller.Logout);

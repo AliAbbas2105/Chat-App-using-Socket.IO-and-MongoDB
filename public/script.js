@@ -17,7 +17,14 @@ let onlineUsers = new Set();
 async function fetchUnreadCounts() {
   try {
     const res = await fetch('/users/unread-counts');
-    unreadCounts = await res.json();
+    const privateUnread = await res.json();
+
+    // Fetch room chat unread counts
+    const roomRes = await fetch('/rooms/unread-counts');
+    const roomUnread = await roomRes.json();
+
+    // Merge both into unreadCounts
+    unreadCounts = { ...privateUnread, ...roomUnread };
     renderUserList(users); // Updates display with new counts
   } catch (err) {
     console.error('Failed to fetch unread counts:', err);
@@ -36,7 +43,6 @@ async function fetchNotifications() {
 }
 
 function updateNotificationBadge() {
-  // Only count actually unread notifications from the server
   const unreadCount = notifications.filter(n => !n.read).length;
   const badge = document.getElementById('notification-badge');
   if (unreadCount > 0) {
@@ -46,7 +52,6 @@ function updateNotificationBadge() {
     badge.classList.add('hidden');
   }
   
-  // Update notification panel if it's open
   const panel = document.getElementById('notifications-panel');
   if (panel && panel.style.display === 'block') {
     renderNotifications();
@@ -58,7 +63,6 @@ document.querySelector('.notification-icon').addEventListener('click', (e) => {
   e.stopPropagation();
   const panel = document.getElementById('notifications-panel');
   if (!panel) {
-    // Create notifications panel if it doesn't exist
     const newPanel = document.createElement('div');
     newPanel.id = 'notifications-panel';
     document.querySelector('.header').appendChild(newPanel);
@@ -72,7 +76,6 @@ document.querySelector('.notification-icon').addEventListener('click', (e) => {
   }
 });
 
-// Close notification panel when clicking outside
 document.addEventListener('click', (e) => {
   const panel = document.getElementById('notifications-panel');
   const notificationIcon = document.querySelector('.notification-icon');
@@ -88,14 +91,12 @@ function formatDate(date) {
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   
   if (days === 0) {
-    // Today - show time
     return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } else if (days === 1) {
     return 'Yesterday';
   } else if (days < 7) {
     return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][messageDate.getDay()];
   } else {
-    // More than a week ago - show date
     return messageDate.toLocaleDateString();
   }
 }
@@ -116,7 +117,6 @@ function renderNotifications() {
 
 async function markNotificationRead(notificationId, fromUserId) {
   try {
-    // Delete notification from server
     await fetch('/users/notifications/delete', {
       method: 'POST',
       headers: {
@@ -125,12 +125,10 @@ async function markNotificationRead(notificationId, fromUserId) {
       body: JSON.stringify({ notificationIds: [notificationId] })
     });
 
-    // Remove notification from local state
     notifications = notifications.filter(n => n._id !== notificationId);
     updateNotificationBadge();
     renderNotifications();
 
-    // Find and select the user from the notification
     const user = users.find(u => u._id === fromUserId);
     if (user) {
       selectUser(user);
@@ -140,23 +138,20 @@ async function markNotificationRead(notificationId, fromUserId) {
   }
 }
 
-// Fetch chatted users on load
 async function fetchChattedUsers() {
   const res = await fetch('/users/chatted');
   users = await res.json();
-  await fetchUnreadCounts(); // Get initial unread counts
+  await fetchUnreadCounts();
   renderUserList(users);
 }
 
-// Fetch chat history with a user
 async function fetchChatHistory(userId) {
   const res = await fetch(`/messages/history/${userId}`);
   const history = await res.json();
   
-  // Make sure each message has isRead property set
   history.forEach(msg => {
     if (msg.sender === CURRENT_USER) {
-      msg.isRead = !!msg.isRead; // Convert to boolean
+      msg.isRead = !!msg.isRead;
     }
   });
   
@@ -165,7 +160,6 @@ async function fetchChatHistory(userId) {
   scrollToBottom();
 }
 
-// Search users
 async function searchUsers(query) {
   if (!query) {
     fetchChattedUsers();
@@ -176,26 +170,64 @@ async function searchUsers(query) {
   renderUserList(users);
 }
 
-// Render user list
+function renderCreateRoomButton() {
+  const li = document.createElement('li');
+  li.className = 'create-room-button';
+  li.innerHTML = `
+    <div class="user-avatar">
+      <i class="fas fa-plus-circle"></i>
+    </div>
+    <div class="user-info">
+      <div class="username">Create New Chat Room</div>
+    </div>
+  `;
+  li.onclick = () => {
+    const roomName = prompt('Enter room name:');
+    if (roomName) {
+      createChatRoom(roomName);
+    }
+  };
+  return li;
+}
+
+async function createChatRoom(roomName) {
+  try {
+    const response = await fetch('/rooms/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ roomName })
+    });
+    
+    const result = await response.json();
+    if (response.ok) {
+      fetchChattedUsers();
+    } else {
+      alert(result.message || 'Failed to create room');
+    }
+  } catch (error) {
+    console.error('Error creating room:', error);
+    alert('Failed to create room');
+  }
+}
+
 function renderUserList(users) {
   userList.innerHTML = '';
   users.forEach(user => {
     const li = document.createElement('li');
     
-        // Add avatar
-    li.appendChild(createUserAvatar(user.username));
+    li.appendChild(createUserAvatar(user.type === 'room' ? user.name : user.username));
     
-    // Create user info container
     const userInfo = document.createElement('div');
     userInfo.className = 'user-info';
     
-    // Create header with username and date
     const header = document.createElement('div');
     header.className = 'chat-header';
     
     const username = document.createElement('div');
     username.className = 'username';
-    username.textContent = user.username;
+    username.textContent = user.type === 'room' ? user.name : user.username;
     header.appendChild(username);
     
     if (user.lastMessageDate) {
@@ -207,7 +239,6 @@ function renderUserList(users) {
     
     userInfo.appendChild(header);
     
-    // Add last message preview
     if (user.lastMessage) {
       const lastMessage = document.createElement('div');
       lastMessage.className = 'last-message';
@@ -217,9 +248,24 @@ function renderUserList(users) {
       userInfo.appendChild(lastMessage);
     }
     
+    if (user.type === 'room' && user.hasOwnProperty('isMember') && !user.isMember) {
+      const joinBtn = document.createElement('button');
+      joinBtn.className = 'join-room-btn';
+      joinBtn.textContent = 'Join';
+      joinBtn.onclick = (e) => {
+        e.stopPropagation();
+        const roomId = prompt('Enter room ID to join:');
+        if (roomId === user._id) {
+          joinRoom(user._id, user.name);
+        } else {
+          alert('Invalid room ID');
+        }
+      };
+      userInfo.appendChild(joinBtn);
+    }
+
     li.appendChild(userInfo);
-    
-    // Add unread badge if needed
+
     if (unreadCounts[user._id]) {
       const badge = document.createElement('span');
       badge.className = 'unread-badge';
@@ -231,9 +277,41 @@ function renderUserList(users) {
       li.classList.add('selected');
     }
     
-    li.onclick = () => selectUser(user);
+    if (user.type !== 'room' || !user.hasOwnProperty('isMember') || user.isMember) {
+      li.onclick = () => selectUser(user);
+    } else {
+      li.style.opacity = '0.7';
+    }
+
     userList.appendChild(li);
   });
+  
+  userList.appendChild(renderCreateRoomButton());
+}
+
+async function joinRoom(roomId, roomName) {
+  try {
+    const response = await fetch(`/rooms/${roomId}/join`, {
+      method: 'POST'
+    });
+    
+    const result = await response.json();
+    if (response.ok) {
+      alert(`Successfully joined room: ${roomName}`);
+      socket.emit('join room', roomId);
+      await fetchChattedUsers();
+      searchInput.value = '';
+      const joinedRoom = users.find(u => u._id === roomId);
+      if (joinedRoom) {
+        selectUser(joinedRoom);
+      }
+    } else {
+      alert(result.message || 'Failed to join room');
+    }
+  } catch (error) {
+    console.error('Error joining room:', error);
+    alert('Failed to join room');
+  }
 }
 
 function getMessageStatusHTML(isRead) {
@@ -258,7 +336,9 @@ function renderMessages(msgs) {
         </div>`;
       item.className = 'sent';
     } else {
+      const showSenderName = msg.senderName && msg.type === 'room'
       item.innerHTML = `
+        ${showSenderName ? `<div class="sender-name">${msg.senderName}</div>` : ''}
         <div class="message-content">${msg.content || msg.text}</div>
         <div class="message-info">
           <span class="message-date">${formatDate(messageDate)}</span>
@@ -270,13 +350,10 @@ function renderMessages(msgs) {
   scrollToBottom();
 }
 
-// Scroll to bottom of messages
 function scrollToBottom() {
   messages.scrollTop = messages.scrollHeight;
 }
 
-// Select a user to chat with and set unread count to 0
-// Create user avatar element
 function createUserAvatar(username) {
   const avatar = document.createElement('div');
   avatar.className = 'user-avatar';
@@ -287,35 +364,76 @@ function createUserAvatar(username) {
 async function selectUser(user) {
   selectedUser = user;
   
-  // Update the chat header with selected username and avatar
   const headerDiv = document.getElementById('selectedUserName');
-  headerDiv.innerHTML = ''; // Clear existing content
-  headerDiv.appendChild(createUserAvatar(user.username));
+  headerDiv.innerHTML = '';
   
-  // Add user info container
-  const userInfo = document.createElement('div');
-  userInfo.className = 'user-info';
+  if (user.type === 'room') {
+    // Create container for avatar and info
+    const headerContainer = document.createElement('div');
+    headerContainer.className = 'room-header-container';
+    
+    // Avatar
+    headerContainer.appendChild(createUserAvatar(user.name || user.roomName));
+    
+    // Info section
+    const roomInfo = document.createElement('div');
+    roomInfo.className = 'room-info';
+    
+    // Room name and ID
+    const roomTitle = document.createElement('div');
+    roomTitle.className = 'room-title';
+    roomTitle.textContent = `${user.name || user.roomName} -- (Room ID: ${user._id})`;
+    roomInfo.appendChild(roomTitle);
+    
+    // Action container (right-aligned)
+    const actionContainer = document.createElement('div');
+    actionContainer.className = 'room-actions';
+    
+    // Check if current user is the creator
+    if (user.createdBy && user.createdBy.toString() === CURRENT_USER_ID) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'room-action-btn delete';
+      deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+      deleteBtn.onclick = () => deleteRoom(user._id);
+      actionContainer.appendChild(deleteBtn);
+    } else {
+      const leaveBtn = document.createElement('button');
+      leaveBtn.className = 'room-action-btn';
+      leaveBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Leave';
+      leaveBtn.onclick = () => leaveRoom(user._id);
+      actionContainer.appendChild(leaveBtn);
+    }
+    
+    // Append info and actions to container
+    headerContainer.appendChild(roomInfo);
+    headerContainer.appendChild(actionContainer);
+    headerDiv.appendChild(headerContainer);
+
+    await fetchRoomHistory(user._id);
+    socket.emit('join room', user._id);
+    socket.emit('mark room as read', { roomId: user._id });
+  } else {
+    // Private chat header remains unchanged
+    headerDiv.appendChild(createUserAvatar(user.username));
+    
+    const userInfo = document.createElement('div');
+    userInfo.className = 'user-info';
+    
+    const username = document.createElement('div');
+    username.className = 'username';
+    username.textContent = user.username;
+    userInfo.appendChild(username);
+    
+    headerDiv.appendChild(userInfo);
+
+    await fetchChatHistory(user._id);
+    socket.emit('mark as read', { withUserId: user._id });
+  }
   
-  // Add username
-  const username = document.createElement('div');
-  username.className = 'username';
-  username.textContent = user.username;
-  userInfo.appendChild(username);
-  
-  headerDiv.appendChild(userInfo);
-  
-  await fetchChatHistory(user._id);
-  
-  // Mark messages as read
-  socket.emit('mark as read', { withUserId: user._id });
-  
-  // Reset unread count for this user
   unreadCounts[user._id] = 0;
-  
-  // Update UI
+  await fetchUnreadCounts(); // Refresh unread counts after marking as read
   renderUserList(users);
   
-  // Delete all notifications from this user
   const notificationsToDelete = notifications
     .filter(notif => notif.fromUserId === user._id)
     .map(notif => notif._id);
@@ -326,7 +444,6 @@ async function selectUser(user) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notificationIds: notificationsToDelete })
     }).then(() => {
-      // Remove notifications from local state
       notifications = notifications.filter(notif => notif.fromUserId !== user._id);
       updateNotificationBadge();
       renderNotifications();
@@ -334,42 +451,91 @@ async function selectUser(user) {
   }
 }
 
-// Handle sending a message
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   if (input.value && selectedUser) {
     const messageText = input.value;
     input.value = '';
     
-    // Add message to local chat history immediately
-    if (!chatHistory[selectedUser._id]) chatHistory[selectedUser._id] = [];
-    const newMessage = {
-      sender: CURRENT_USER,
-      senderName: CURRENT_USER,
-      text: messageText,
-      _id: Date.now(),
-      createdAt: new Date(), // Add current date/time for the message
-      status: 'sent' // Initial status
-     } 
-    chatHistory[selectedUser._id].push(newMessage);
-    renderMessages(chatHistory[selectedUser._id]);
-    scrollToBottom();
-
-    // Send to server
-    socket.emit('private message', { toUserId: selectedUser._id, text: messageText });
+    if (selectedUser.type === 'room') {
+      socket.emit('room message', { roomId: selectedUser._id, text: messageText });
+    } else {
+      socket.emit('private message', { toUserId: selectedUser._id, text: messageText });
+    }
     
-    // Fetch updated user list to get new order
     fetchChattedUsers();
   }
 });
 
+async function leaveRoom(roomId) {
+  if (!confirm('Are you sure you want to leave this room?')) return;
+  
+  try {
+    const response = await fetch(`/rooms/${roomId}/leave`, {
+      method: 'POST'
+    });
+    
+    const result = await response.json();
+    if (response.ok) {
+      alert('Successfully left the room');
+      socket.emit('leave room', roomId);
+      selectedUser = null;
+      messages.innerHTML = '';
+      document.getElementById('selectedUserName').innerHTML = '';
+      fetchChattedUsers();
+    } else {
+      alert(result.message || 'Failed to leave room');
+    }
+  } catch (error) {
+    console.error('Error leaving room:', error);
+    alert('Failed to leave room');
+  }
+}
 
-// Search bar event
+async function deleteRoom(roomId) {
+  if (!confirm('Are you sure you want to delete this room? This cannot be undone.')) return;
+  
+  try {
+    const response = await fetch(`/rooms/${roomId}`, {
+      method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    if (response.ok) {
+      alert('Room deleted successfully');
+      socket.emit('leave room', roomId);
+      selectedUser = null;
+      messages.innerHTML = '';
+      document.getElementById('selectedUserName').innerHTML = '';
+      fetchChattedUsers();
+    } else {
+      alert(result.message || 'Failed to delete room');
+    }
+  } catch (error) {
+    console.error('Error deleting room:', error);
+    alert('Failed to delete room');
+  }
+}
+
+async function fetchRoomHistory(roomId) {
+  try {
+    const res = await fetch(`/rooms/${roomId}/messages`);
+    const history = await res.json();
+    chatHistory[roomId] = history;
+    renderMessages(history);
+    scrollToBottom();
+    
+    socket.emit('mark room as read', { roomId });
+  } catch (error) {
+    console.error('Error fetching room history:', error);
+    alert('Failed to fetch room messages');
+  }
+}
+
 searchInput.addEventListener('input', (e) => {
-        searchUsers(e.target.value);
+  searchUsers(e.target.value);
 });
 
-// Initial load
 async function initialLoad() {
   await fetchChattedUsers();
   await fetchNotifications();
@@ -400,56 +566,68 @@ socket.on('tokenExpired', () => {
   window.location.href = '/login';
 });
 
-// Handle incoming messages and notifications
+socket.on('room message', async ({ roomId, sender, senderName, text, _id, createdAt }) => {
+  if (selectedUser && selectedUser.type === 'room' && selectedUser._id === roomId) {
+    if (!chatHistory[roomId]) chatHistory[roomId] = [];
+    const existingMessage = chatHistory[roomId].find(msg => msg._id === _id);
+    if (!existingMessage) {
+      chatHistory[roomId].push({
+        sender,
+        senderName,
+        text,
+        _id: _id || Date.now(),
+        createdAt: createdAt || new Date(),
+        type: 'room'
+      });
+      renderMessages(chatHistory[roomId]);
+      scrollToBottom();
+    }
+  }
+
+  await fetchNotifications();
+  await fetchChattedUsers();
+});
+
 socket.on('private message', async ({ fromUserId, senderName, text, _id, createdAt, isRead }) => {
   if (selectedUser && fromUserId === selectedUser._id) {
-    // If chat is open with this user, add message and mark as read
     if (!chatHistory[fromUserId]) chatHistory[fromUserId] = [];
-    chatHistory[fromUserId].push({ 
-      sender: senderName, 
-      text, 
-      _id: _id || Date.now(),
-      createdAt: createdAt || new Date(),
-      isRead: !!isRead
-    });
-    renderMessages(chatHistory[fromUserId]);
-    // Immediately mark as read on server
-    socket.emit('mark as read', { withUserId: fromUserId });
-    unreadCounts[fromUserId] = 0;
-    renderUserList(users);
+    const existingMessage = chatHistory[fromUserId].find(msg => msg._id === _id);
+    if (!existingMessage) {
+      chatHistory[fromUserId].push({ 
+        sender: senderName, 
+        text, 
+        _id: _id || Date.now(),
+        createdAt: createdAt || new Date(),
+        isRead: !!isRead
+      });
+      renderMessages(chatHistory[fromUserId]);
+      socket.emit('mark as read', { withUserId: fromUserId });
+      unreadCounts[fromUserId] = 0;
+      renderUserList(users);
+    }
   } else {
-    // Only update unread count if chat is not open
     await fetchUnreadCounts();
   }
 
-  // Always update notifications and chat order
   await fetchNotifications();
-  
-  // Update chat list without modifying unread counts
   const res = await fetch('/users/chatted');
   users = await res.json();
   renderUserList(users);
   
-  // If current chat is open, scroll to bottom
   if (selectedUser && fromUserId === selectedUser._id) {
     scrollToBottom();
   }
 });
 
-// Handle message status updates
 socket.on('message-status', ({ messageId, isRead }) => {
-  console.log('Status update received:', messageId, isRead);
-  // First try to update the specific status element without re-rendering
   const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
   if (messageElement) {
     const statusSpan = messageElement.querySelector('.message-status');
     if (statusSpan) {
       statusSpan.innerHTML = getMessageStatusHTML(isRead);
-      console.log('Updated status display for message:', messageId);
     }
   }
   
-  // Also update in chat history
   for (let userId in chatHistory) {
     const messages = chatHistory[userId];
     const message = messages.find(msg => msg._id.toString() === messageId.toString());
@@ -459,4 +637,22 @@ socket.on('message-status', ({ messageId, isRead }) => {
     }
   }
 });
-    
+
+socket.on('room message status', ({ messageId, isRead }) => {
+  const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (messageElement) {
+    const statusSpan = messageElement.querySelector('.message-status');
+    if (statusSpan) {
+      statusSpan.innerHTML = getMessageStatusHTML(isRead);
+    }
+  }
+  
+  for (let roomId in chatHistory) {
+    const messages = chatHistory[roomId];
+    const message = messages.find(msg => msg._id.toString() === messageId.toString());
+    if (message) {
+      message.isRead = isRead;
+      break;
+    }
+  }
+});

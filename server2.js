@@ -1,7 +1,7 @@
 const express = require('express')
 const session = require('express-session');
 const app = express()
-const dotenv=require('dotenv')
+const dotenv = require('dotenv')
 dotenv.config()
 const mongoose = require('mongoose')
 const passport = require('passport');
@@ -20,10 +20,10 @@ const Notification = require('./models/notification');
 require('./controllers/auth-google');
 
 mongoose.connect(process.env.MONGODBLINK)
-        .then(()=>{
+        .then(() => {
             console.log('Connected to MongoDB');
         })
-        .catch((error)=>{
+        .catch((error) => {
             console.error('MongoDB connection error:', error);
         })
 
@@ -65,11 +65,26 @@ app.use('/rooms', roomRoutes);
 const server = createServer(app);
 const io = new Server(server);
 
-const onlineUsers = {}; // userId -> socketId
+const onlineUsers = {};
 const Message = require('./models/message');
+const ChatRoom = require('./models/chatRoom');
+const RoomMember = require('./models/roomMember');
+
+const roomMembers = new Map();
+
+async function initializeRoomMembers() {
+    const members = await RoomMember.find().lean();
+    members.forEach(member => {
+        const roomId = member.roomId.toString();
+        if (!roomMembers.has(roomId)) {
+            roomMembers.set(roomId, new Set());
+        }
+        roomMembers.get(roomId).add(member.userId.toString());
+    });
+}
+initializeRoomMembers();
 
 io.on('connection', async (socket) => {
-  // Parse cookies and verify JWT
   const rawCookies = socket.handshake.headers.cookie || '';
   const cookies = cookie.parse(rawCookies);
   const token = cookies.token;
@@ -86,6 +101,11 @@ io.on('connection', async (socket) => {
         socket.userId = userId;
         socket.username = username;
         onlineUsers[userId] = socket.id;
+        
+        const userRooms = await RoomMember.find({ userId }).lean();
+        userRooms.forEach(membership => {
+            socket.join(membership.roomId.toString());
+        });
       } else {
         socket.emit('tokenExpired');
         socket.disconnect();
@@ -102,13 +122,11 @@ io.on('connection', async (socket) => {
     return;
   }
 
-  // Handle private messages
   socket.on('private message', async ({ toUserId, text }) => {
     if (!toUserId || !text) return;
     
     const sender = await User.findById(userId);
     
-    // Save message to DB, unread by default
     const message = new Message({
       sender: userId,
       recipient: toUserId,
@@ -118,7 +136,6 @@ io.on('connection', async (socket) => {
     });
     await message.save();
 
-    // Create notification for recipient (but not for sender)
     const notification = new Notification({
       userId: toUserId,
       fromUserId: userId,
@@ -127,21 +144,9 @@ io.on('connection', async (socket) => {
     });
     await notification.save();
 
-    // Send to recipient if online
     const recipientSocketId = onlineUsers[toUserId];
     
-    // First emit to sender for instant UI update
-    socket.emit('private message', {
-      sender: userId,
-      senderName: username,
-      text,
-      _id: message._id,
-      createdAt: message.createdAt,
-      isRead: false
-    });
-
     if (recipientSocketId) {
-      // Send to recipient
       io.to(recipientSocketId).emit('private message', {
         fromUserId: userId,
         senderName: sender.username,
@@ -152,28 +157,23 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Mark messages as read when user opens a chat
   socket.on('mark as read', async ({ withUserId }) => {
     if (!withUserId) return;
     
     try {
-      // Get unread messages first
       const unreadMessages = await Message.find({
         sender: withUserId,
         recipient: userId,
         isRead: false
       });
 
-      // Mark messages as read in database
       await Message.updateMany(
         { sender: withUserId, recipient: userId, isRead: false },
         { isRead: true }
       );
       
-      // Notify sender immediately about the messages that were just marked as read
       const senderSocketId = onlineUsers[withUserId];
       if (senderSocketId && unreadMessages.length > 0) {
-        console.log('Sending read status for messages:', unreadMessages.map(m => m._id));
         unreadMessages.forEach(message => {
           io.to(senderSocketId).emit('message-status', {
             messageId: message._id,
@@ -186,16 +186,126 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // On disconnect, remove from online users
+  socket.on('room message', async ({ roomId, text }) => {
+  if (!roomId || !text) return;
+  
+  try {
+    const isMember = await RoomMember.findOne({ roomId, userId });
+    if (!isMember) {
+      socket.emit('error', { message: 'You are not a member of this room' });
+      return;
+    }
+
+    const message = new Message({
+      sender: userId,
+      roomId: roomId,
+      content: text,
+      isRead: false,
+      type: 'room',
+      createdAt: new Date(),
+      readBy: []
+    });
+    await message.save();
+
+    const roomMembersList = await RoomMember.find({ roomId }).select('userId');
+    const memberIds = roomMembersList.map(m => m.userId.toString());
+
+    const notifications = memberIds
+      .filter(memberId => memberId !== userId)
+      .map(memberId => ({
+        userId: memberId,
+        fromUserId: userId,
+        roomId: roomId,
+        message: `New message from ${username} in room`,
+        read: false
+      }));
+
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    io.to(roomId.toString()).emit('room message', {
+      roomId,
+      sender: userId,
+      senderName: username,
+      text,
+      _id: message._id,
+      createdAt: message.createdAt
+    });
+  } catch (error) {
+    console.error('Error sending room message:', error);
+    socket.emit('error', { message: 'Failed to send message' });
+  }
+});
+
+  socket.on('join room', async (roomId) => {
+    socket.join(roomId);
+    if (!roomMembers.has(roomId)) {
+      roomMembers.set(roomId, new Set());
+    }
+    roomMembers.get(roomId).add(userId);
+  });
+
+  socket.on('leave room', async (roomId) => {
+    socket.leave(roomId);
+    if (roomMembers.has(roomId)) {
+      roomMembers.get(roomId).delete(userId);
+    }
+  });
+
+  socket.on('mark room as read', async ({ roomId }) => {
+  if (!roomId) return;
+  
+  try {
+    // Update messages to include user in readBy
+    await Message.updateMany(
+      {
+        roomId,
+        sender: { $ne: userId },
+        'readBy.userId': { $ne: userId }
+      },
+      {
+        $addToSet: { readBy: { userId, readAt: new Date() } }
+      }
+    );
+
+    // Check each message for full read status
+    const messages = await Message.find({
+      roomId,
+      sender: { $ne: userId },
+      type: 'room'
+    });
+    
+    const roomMembersList = await RoomMember.find({ roomId }).select('userId');
+    const memberIds = roomMembersList.map(m => m.userId.toString());
+    
+    for (const message of messages) {
+      if (message.readBy.length === memberIds.length - 1) { // Exclude sender
+        await Message.updateOne(
+          { _id: message._id },
+          { isRead: true }
+        );
+        io.to(roomId.toString()).emit('room message status', {
+          messageId: message._id,
+          isRead: true
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error marking room messages as read:', error);
+  }
+});
+
   socket.on('disconnect', () => {
     console.log(`${socket.username} disconnected`);
     delete onlineUsers[userId];
     
+    roomMembers.forEach((members, roomId) => {
+      members.delete(userId);
+    });
   });
 });
-
 
 server.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`)
 })
-// app.listen(PORT)

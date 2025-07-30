@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="header">
-      <h2 style="margin: 0;">Welcome to Code Xperts Chat!</h2>
+      <h2>Welcome to Code Xperts Chat!</h2>
       <div class="notification-icon">
         <i class="fas fa-bell"></i>
         <span id="notification-badge" class="notification-badge hidden">0</span>
@@ -24,6 +24,9 @@
           </div>
           <ul id="userList" class="user-list"></ul>
         </div>
+        <!-- <div class="create-room">
+          <button id="createRoomBtn" class="create-room-btn">Create Room</button>
+        </div> -->
         <div id="currentUserBox">
           <span id="currentUserName"></span>
           <button id="logoutBtn" class="logout-btn">Logout</button>
@@ -43,6 +46,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const CURRENT_USER = "<%= username %>";
+      const CURRENT_USER_ID = "<%= userId %>";
     </script>
     <script src="/script.js"></script>
   </body>
