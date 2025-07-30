@@ -6,6 +6,7 @@ A real-time chat application built using **Express.js**, **Socket.IO**, and **Mo
 
 - 🔐 **JWT Authentication** – Secure login/signup with JWT token and cookie parsing.
 - 💬 **Real-Time Messaging** – Messages are delivered instantly using Socket.IO.
+- 👥💬**Group Chat Room** - User can create/join/leave/delete(only group creator) the chat rooms.
 - 📥 **Persistent Message Storage** – Messages are saved in the database even if the receiver is offline or chatting with someone else.
 - 📊 **Unread Count** – Messages are marked as unread and updated to read when the user views the chat.
 - 🔔 **Notifications** - Notification received on each message is shown, gets deleted when marked as read.

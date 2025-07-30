@@ -100,7 +100,7 @@ io.on('connection', async (socket) => {
         username = user.username;
         socket.userId = userId;
         socket.username = username;
-        onlineUsers[userId] = socket.id;
+        onlineUsers[userId] = socket.id; 
         
         const userRooms = await RoomMember.find({ userId }).lean();
         userRooms.forEach(membership => {
@@ -144,17 +144,27 @@ io.on('connection', async (socket) => {
     });
     await notification.save();
 
-    const recipientSocketId = onlineUsers[toUserId];
-    
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('private message', {
-        fromUserId: userId,
-        senderName: sender.username,
-        text,
-        _id: message._id,
-        createdAt: message.createdAt
-      });
+    const messageData = {
+      fromUserId: userId,
+      senderName: sender.username,
+      text,
+      _id: message._id,
+      createdAt: message.createdAt
     }
+
+    console.log(`Emitting to sender ${userId}:`, messageData);
+    socket.emit('private message', {
+      ...messageData,
+      isRead: false,
+      }
+    );
+
+    const recipientSocketId = onlineUsers[toUserId];
+    if (recipientSocketId) {
+      console.log(`Emitting to recipient ${toUserId}:`, messageData);
+      io.to(recipientSocketId).emit('private message', messageData);
+    }
+
   });
 
   socket.on('mark as read', async ({ withUserId }) => {

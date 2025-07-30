@@ -1,18 +1,34 @@
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-      .header {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 60px;
-        background: #e0eaff;
-        border-bottom: 1px solid #ccc;
-        z-index: 100;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 15px;
+body { margin: 0; 
+  font-family: -apple-system, 
+  BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
 }
+
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: #e0eaff;
+  border-bottom: 1px solid #ccc;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+}
+
+.header h2 {
+  flex-grow: 1;
+  text-align: center;
+  margin: 0;
+  font-weight: bold;
+  font-size:x-large;
+  color: #000000;
+}
+
+/* .header .notification-icon {
+  margin-left: auto; /* Pushes notification icon to the right */
 .room-header-container {
   display: flex;
   align-items: center;
@@ -47,8 +63,7 @@
 }
 
 .room-actions {
-    margin-left: auto;
-    margin-right: 0;
+    margin-left: 10px;
     margin-top: 4px;
     display: flex;
     gap: 10px;
@@ -60,11 +75,12 @@
     border-radius: 5px;
     cursor: pointer;
     display: flex;
-    align-items:end;
+    align-items:center;
     gap: 5px;
     font-size: 0.9em;
     background: #e4e6e8;
     color: #333;
+    
 }
 
 .room-action-btn:hover {

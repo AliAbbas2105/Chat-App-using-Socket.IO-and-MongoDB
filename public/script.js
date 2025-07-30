@@ -589,6 +589,7 @@ socket.on('room message', async ({ roomId, sender, senderName, text, _id, create
 });
 
 socket.on('private message', async ({ fromUserId, senderName, text, _id, createdAt, isRead }) => {
+  console.log(`Received private message on frontend for ${fromUserId}, selectedUser: ${selectedUser ? selectedUser._id : 'none'}`);
   if (selectedUser && fromUserId === selectedUser._id) {
     if (!chatHistory[fromUserId]) chatHistory[fromUserId] = [];
     const existingMessage = chatHistory[fromUserId].find(msg => msg._id === _id);
@@ -598,7 +599,8 @@ socket.on('private message', async ({ fromUserId, senderName, text, _id, created
         text, 
         _id: _id || Date.now(),
         createdAt: createdAt || new Date(),
-        isRead: !!isRead
+        isRead: !!isRead,
+        fromUserId: fromUserId
       });
       renderMessages(chatHistory[fromUserId]);
       socket.emit('mark as read', { withUserId: fromUserId });
